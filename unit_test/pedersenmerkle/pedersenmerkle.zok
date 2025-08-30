@@ -1,0 +1,52 @@
+// nice summary for hash function selection, but some source changed name slightly
+// https://zk-plus.github.io/tutorials/basics/hashing-algorithms-benchmarks#summary
+
+
+
+// import "hashes/sha256/512bitPadded" as sha256;
+// blake source function 
+// https://github.com/Zokrates/ZoKrates/blob/develop/zokrates_stdlib/stdlib/hashes/blake2/blake2s.zok
+// import "hashes/blake2/blake2s_p" as blake2s_p;
+
+// blake format is a problem, what about pedersen
+import "hashes/pedersen/512bit" as hash;
+// to convert the input preimage into the correct format u32[16]
+import "hashes/utils/256bitsDirectionHelper" as multiplex;
+
+// leave the root out of the struct as all the variables 
+// in the struct are all private and the root is public
+struct MerkleTreeProofStruct<DEPTH> {
+	u32[8] leaf;
+	bool[DEPTH] directionSelector; 
+	u32[DEPTH][8] path;
+}
+
+// directionSelector => true if current digest is on the rhs of the hash
+// def select(bool condition, u32[8] left, u32[8] right) -> (u32[8], u32[8]) {
+// 	return (condition ? right : left, condition ? left : right);
+// }
+
+// Merkle-Tree inclusion proof for tree depth <DEPTH> using sha256
+def merkleTreeProof<DEPTH>(u32[8] root, MerkleTreeProofStruct<DEPTH> proof) -> bool {
+    // Start from the leaf
+    u32[8] mut digest = proof.leaf;
+
+	// Loop up the tree
+	for u32 i in 0..DEPTH {
+		// (u32[8], u32[8]) s = select(proof.directionSelector[i], digest, proof.path[i]);
+		// digest = sha256(s.0, s.1);
+		// good example of pedersen format
+		// https://github.com/Zokrates/ZoKrates/blob/deploy/zokrates_cli/examples/merkleTree/pedersenPathProof3.zok
+		u32[16] preimage = multiplex(proof.directionSelector[i], digest, proof.path[i]);
+		digest = hash(preimage);
+	}
+
+    return digest == root;
+}
+
+const u32 TREE_DEPTH = 3;
+
+def main(u32[8] treeRoot ,private MerkleTreeProofStruct<TREE_DEPTH> proof) {
+    
+    assert(merkleTreeProof(treeRoot, proof));
+}
